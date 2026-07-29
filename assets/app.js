@@ -285,3 +285,14 @@ async function boot(pageId,renderFn){
     setInterval(function(){if(!document.getElementById('modal-root').innerHTML)pullRemote(true);},20000);
   }
 }
+
+/* --- диагностика: если что-то пошло не так, показываем текст, а не белый экран --- */
+window.GRAFIK_READY=true;
+window.addEventListener('error',function(ev){
+  var v=document.getElementById('view');if(!v)return;
+  if(v.getAttribute('data-err'))return;
+  v.setAttribute('data-err','1');
+  v.innerHTML='<div class="card"><h3>Ошибка загрузки страницы</h3>'+
+    '<p class="muted">'+String(ev.message||'')+'</p>'+
+    '<p class="muted" style="font-size:12.5px">Обновите страницу (Ctrl+F5). Если не помогло — возможно, файлы из папки assets загружены не полностью.</p></div>';
+});

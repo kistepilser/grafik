@@ -153,3 +153,5 @@ table.list tr:last-child td{border-bottom:none}
   .sheet-head{padding:16px}.coverbar,.legend{padding:14px 16px}
   nav.tabs{margin-left:0;width:100%;overflow-x:auto}
 }
+
+.loading{padding:40px;text-align:center;color:var(--text2);font-size:14px}
