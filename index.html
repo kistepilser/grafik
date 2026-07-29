@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>График смен — учёт по объектам</title>
+<style>
+:root{
+  --text:#2C2C2B; --text2:#7D7A75; --canvas:#FFFFFF; --soft:#F9F8F7; --soft2:#F0EFED;
+  --border:#E6E5E3; --blue:#2783DE; --blue-soft:#E5F2FC; --green:#46A171; --green-soft:#E8F1EC;
+  --orange:#D5803B; --orange-soft:#FBEBDE; --red:#E56458; --red-soft:#FCE9E7;
+  --radius:8px; --shadow:0 1px 2px rgba(0,0,0,.05), 0 4px 12px rgba(0,0,0,.04);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.5;color:var(--text);background:var(--soft);-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 14px;border:1px solid var(--border);
+  background:var(--canvas);border-radius:var(--radius);cursor:pointer;font-size:14px;font-weight:500;transition:.15s}
+.btn:hover{background:var(--soft2)}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{filter:brightness(.95)}
+.btn.danger{color:var(--red);border-color:var(--border)}
+.btn.danger:hover{background:var(--red-soft)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--soft2)}
+.btn.sm{min-height:32px;padding:4px 10px;font-size:13px}
+input,select{min-height:40px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--canvas);width:100%}
+input:focus,select:focus{outline:2px solid var(--blue);outline-offset:-1px;border-color:var(--blue)}
+label.f{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.field{margin-bottom:16px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:var(--canvas);border:1px solid var(--border);border-radius:12px;padding:24px}
+.muted{color:var(--text2)}
+.hidden{display:none !important}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
+h1{font-size:28px}h2{font-size:22px}h3{font-size:17px}
+
+/* ---------- Login ---------- */
+#login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:radial-gradient(1200px 600px at 20% -10%, #E5F2FC 0%, rgba(229,242,252,0) 60%), var(--soft)}
+#login .card{width:100%;max-width:400px;box-shadow:var(--shadow)}
+.logo{display:flex;align-items:center;gap:10px;margin-bottom:24px}
+.logo .mark{width:36px;height:36px;border-radius:10px;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+.err{color:var(--red);font-size:14px;margin-top:-6px;margin-bottom:12px}
+
+/* ---------- App shell ---------- */
+header.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border)}
+.top-in{max-width:1600px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+nav.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-left:auto}
+nav.tabs button{border:none;background:transparent;padding:8px 12px;border-radius:var(--radius);font-size:14px;
+  font-weight:500;color:var(--text2);cursor:pointer;min-height:40px}
+nav.tabs button:hover{background:var(--soft2);color:var(--text)}
+nav.tabs button.active{background:var(--soft2);color:var(--text)}
+.userchip{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2)}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--soft2);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--text)}
+main{max-width:1600px;margin:0 auto;padding:24px}
+
+/* ---------- Toolbar ---------- */
+.toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
+.yearpick{display:flex;align-items:center;gap:4px;background:var(--canvas);border:1px solid var(--border);border-radius:var(--radius);padding:2px}
+.yearpick button{border:none;background:transparent;width:34px;height:36px;border-radius:6px;cursor:pointer;color:var(--text2)}
+.yearpick button:hover{background:var(--soft2);color:var(--text)}
+.yearpick .y{min-width:56px;text-align:center;font-weight:600;font-size:15px}
+.months{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;margin-bottom:16px}
+.months button{border:1px solid transparent;background:var(--canvas);border-color:var(--border);
+  padding:6px 12px;border-radius:999px;font-size:13px;cursor:pointer;white-space:nowrap;min-height:36px}
+.months button:hover{background:var(--soft2)}
+.months button.active{background:var(--text);border-color:var(--text);color:#fff}
+
+/* ---------- Schedule table ---------- */
+.sheet{background:var(--canvas);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.sheet-head{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.sheet-head .sub{font-size:13px;color:var(--text2)}
+.tablewrap{overflow-x:auto}
+table.sch{border-collapse:separate;border-spacing:0;width:100%;font-size:13px}
+table.sch th,table.sch td{border-bottom:1px solid var(--border);border-right:1px solid var(--border);padding:0;text-align:center;
+  background:var(--canvas)}
+table.sch thead th{position:sticky;top:0;z-index:5;background:var(--soft);font-weight:600;font-size:12px;color:var(--text2);
+  height:38px;padding:0 4px;white-space:nowrap}
+table.sch thead th.wknd{background:var(--soft2);color:var(--text)}
+table.sch td.day,table.sch th.day{width:34px;min-width:34px}
+table.sch td.wkndcol{background:#FCFCFB}
+.c-fio{text-align:left;padding:8px 12px !important;min-width:230px;font-weight:500}
+.c-fio .pos{display:block;font-size:11px;color:var(--text2);font-weight:400}
+.c-tel{min-width:140px;white-space:nowrap;color:var(--text2);padding:0 10px !important;text-align:left}
+.c-gr{min-width:56px;font-weight:600}
+.sticky1{position:sticky;left:0;z-index:6}
+.sticky2{position:sticky;left:44px;z-index:6}
+table.sch thead th.sticky1,table.sch thead th.sticky2{z-index:8}
+.c-num{width:44px;min-width:44px;color:var(--text2)}
+.cell{width:100%;height:34px;border:none;background:transparent;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--text);
+  display:grid;place-items:center;padding:0}
+.cell:hover{outline:2px solid var(--blue);outline-offset:-2px;border-radius:4px}
+.cell.off{color:var(--border)}
+.s-work{background:var(--blue-soft);color:#1B5E9E}
+.s-extra{background:var(--green-soft);color:#2F7150}
+.s-vac{background:var(--soft2);color:var(--text2)}
+.s-sick{background:#F3EDF7;color:#6B4E86}
+.s-need{background:var(--red-soft);color:#B0392E;box-shadow:inset 0 0 0 1px var(--red)}
+.s-sub{background:var(--orange-soft);color:#9C5A20}
+.s-vacancy{background:repeating-linear-gradient(135deg,var(--red-soft),var(--red-soft) 5px,#fff 5px,#fff 10px);color:#B0392E;box-shadow:inset 0 0 0 1px rgba(229,100,88,.6)}
+tr.vacancy .c-fio{color:var(--red)}
+td.tot{font-weight:600;min-width:52px;background:var(--soft)}
+tr.totrow td{background:var(--soft);font-weight:600}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:14px 24px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text2)}
+.legend span.k{display:inline-flex;align-items:center;gap:6px}
+.sw{width:16px;height:16px;border-radius:4px;display:inline-block}
+.coverbar{padding:18px 24px;border-top:1px solid var(--border);display:flex;gap:24px;flex-wrap:wrap;align-items:center;background:var(--soft)}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--canvas);border:1px solid var(--border);
+  border-radius:999px;padding:6px 14px;font-size:13px;font-weight:600}
+.pill.warn{background:var(--red-soft);border-color:rgba(229,100,88,.4);color:#B0392E}
+.pill.ok{background:var(--green-soft);border-color:rgba(70,161,113,.4);color:#2F7150}
+.coverlist{font-size:12.5px;color:var(--text2);line-height:1.7}
+
+/* ---------- Simple tables ---------- */
+table.list{width:100%;border-collapse:collapse;font-size:14px;background:var(--canvas)}
+table.list th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);
+  padding:10px 12px;border-bottom:1px solid var(--border);font-weight:600}
+table.list td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table.list tr:last-child td{border-bottom:none}
+.tag{display:inline-block;padding:2px 8px;border-radius:6px;background:var(--soft2);font-size:12px;font-weight:600}
+.tag.blue{background:var(--blue-soft);color:#1B5E9E}
+
+/* ---------- Modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(44,44,43,.35);display:grid;place-items:center;z-index:60;padding:24px}
+.modal{background:var(--canvas);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.18);width:100%;max-width:480px;
+  max-height:88vh;overflow:auto}
+.modal .m-head{padding:20px 24px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.modal .m-body{padding:16px 24px 24px}
+.modal .m-foot{padding:0 24px 24px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.choice{display:grid;gap:8px;margin-bottom:16px}
+.choice button{display:flex;align-items:center;gap:10px;text-align:left;padding:10px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--canvas);cursor:pointer;font-size:14px;min-height:44px}
+.choice button:hover{background:var(--soft)}
+.choice button.on{border-color:var(--blue);background:var(--blue-soft)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;
+  padding:10px 18px;border-radius:999px;font-size:14px;z-index:80;box-shadow:var(--shadow)}
+.empty{padding:48px 24px;text-align:center;color:var(--text2);font-size:14px}
+@media (max-width:640px){
+  main{padding:16px}.top-in{padding:10px 16px}.card{padding:16px}
+  .sheet-head{padding:16px}.coverbar,.legend{padding:14px 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header class="top">
+    <div class="top-in">
+      <div class="logo" style="margin:0"><div class="mark">Г</div>
+        <div><div style="font-weight:600;font-size:15px">График смен</div>
+        <div class="muted" style="font-size:12px">11-часовые смены · база данных</div></div></div>
+      <nav class="tabs" id="tabs">
+        <button data-t="sched" class="active">График</button>
+        <button data-t="emps">Сотрудники</button>
+        <button data-t="objs">Объекты</button>
+        <button data-t="admins">Админы</button>
+        <button data-t="sync">Общая база</button>
+        <button data-t="data">Данные</button>
+      </nav>
+      <div class="userchip" id="authbox"></div>
+    </div>
+  </header>
+  <main>
+    <div id="v-sched"></div>
+    <div id="v-emps" class="hidden"></div>
+    <div id="v-objs" class="hidden"></div>
+    <div id="v-admins" class="hidden"></div>
+    <div id="v-sync" class="hidden"></div>
+    <div id="v-data" class="hidden"></div>
+  </main>
+</div>
+<div id="modal-root"></div>
+
+<script>
+/* =========================================================
+   Хранилище (локальная база данных браузера)
+   ========================================================= */
+const KEY='grafik_db_v2';
+const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MON_SHORT=['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+const WD=['вс','пн','вт','ср','чт','пт','сб'];
+const HOURS=11;
+
+const STATES={
+  work:{label:'Смена 11 ч',      txt:'11', cls:'s-work'},
+  extra:{label:'Доп. смена (перекрытие)', txt:'11', cls:'s-extra'},
+  off:{label:'Выходной',         txt:'',   cls:'off'},
+  vac:{label:'Отпуск',           txt:'О',  cls:'s-vac'},
+  sick:{label:'Больничный',      txt:'Б',  cls:'s-sick'},
+  need:{label:'Нужна замена (РВ)',txt:'РВ',cls:'s-need'},
+  sub:{label:'Замена на другом объекте', txt:'', cls:'s-sub'}
+};
+
+function defaultDB(){
+  return {
+    objects:[
+      {id:'o1',name:'Филиал №1 — Центральный',code:'Ф1',address:''},
+      {id:'o2',name:'Филиал №2 — Северный',code:'Ф2',address:''}
+    ],
+    employees:[
+      {id:'e1',objectId:'o1',fio:'Иванов Иван Иванович',phone:'+7 900 000-00-01',graph:1,position:'Продавец',vacancy:false},
+      {id:'e2',objectId:'o1',fio:'Петрова Мария Сергеевна',phone:'+7 900 000-00-02',graph:2,position:'Продавец',vacancy:false},
+      {id:'e3',objectId:'o1',fio:'',phone:'',graph:1,position:'Продавец',vacancy:true},
+      {id:'e4',objectId:'o2',fio:'Сидоров Алексей Петрович',phone:'+7 900 000-00-03',graph:2,position:'Продавец',vacancy:false}
+    ],
+    admins:[{id:'a1',login:'admin',pass:'admin',name:'Администратор',role:'Владелец'}],
+    marks:{}   // ключ: empId|YYYY-MM-DD  ->  {type, objId?}
+  };
+}
+let db=load();
+function load(){try{const r=localStorage.getItem(KEY);if(r)return Object.assign(defaultDB(),JSON.parse(r));}catch(e){}return defaultDB();}
+function save(){localStorage.setItem(KEY,JSON.stringify(db));if(typeof queuePush==='function')queuePush();}
+function uid(p){return p+Math.random().toString(36).slice(2,9);}
+
+/* =========================================================
+   Графики: 14-дневный цикл 2/2/3 (7 смен × 11 ч на 14 дней)
+   График №1 и №2 совпадают с загруженными файлами на 2026 год
+   ========================================================= */
+const CYCLE=[1,1,0,0,1,1,1,0,0,1,1,0,0,0];
+const BASE=Date.UTC(2026,0,1);
+const PHASES=[10,3,11,4,12,5,13,6,0,7,1,8,2,9];
+function phaseOf(g){g=Number(g)||1;return PHASES[((g-1)%14+14)%14];}
+function isShift(graph,y,m,d){
+  if(m===1&&d===1) return false;            // 1 января — нерабочий
+  const diff=Math.round((Date.UTC(y,m-1,d)-BASE)/86400000);
+  return CYCLE[((diff+phaseOf(graph))%14+14)%14]===1;
+}
+function daysInMonth(y,m){return new Date(y,m,0).getDate();}
+function key(empId,y,m,d){return empId+'|'+y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+function objById(id){return db.objects.find(o=>o.id===id);}
+function empName(e){return e.vacancy?'Вакансия':(e.fio||'Без имени');}
+
+/* итоговое состояние ячейки */
+function cellState(emp,y,m,d){
+  const mk=db.marks[key(emp.id,y,m,d)];
+  const base=isShift(emp.graph,y,m,d);
+  if(mk){
+    if(mk.type==='work') return {type:base?'work':'extra',base};
+    return {type:mk.type,base,objId:mk.objId};
+  }
+  return {type:base?'work':'off',base};
+}
+/* нужно ли перекрывать этот день */
+function needsCover(emp,st){
+  if(emp.vacancy) return st.base;
+  return st.base && ['vac','sick','need','sub'].includes(st.type);
+}
+
+/* =========================================================
+   Состояние интерфейса
+   ========================================================= */
+let ui={year:new Date().getFullYear(),month:new Date().getMonth()+1,objectId:null,tab:'sched',me:null};
+if(!db.objects.length) ui.objectId=null; else ui.objectId=db.objects[0].id;
+
+/* ---------- Вход (без входа — режим просмотра) ---------- */
+function isAdmin(){return !!ui.me;}
+function needAdmin(){if(isAdmin())return true;toast('Только просмотр. Нажмите «Войти» вверху, чтобы редактировать');return false;}
+function renderAuth(){
+  const box=document.getElementById('authbox');
+  if(ui.me){
+    const n=(ui.me.name||ui.me.login);
+    box.innerHTML='<div class="avatar">'+esc(n.trim().charAt(0).toUpperCase())+'</div><span>'+esc(n)+'</span>'+
+      '<button class="btn ghost sm" onclick="logout()">Выйти</button>';
+  }else{
+    box.innerHTML='<span class="muted" style="font-size:13px">Режим просмотра</span>'+
+      '<button class="btn" onclick="openLoginModal()">Войти</button>';
+  }
+  const closed=['admins','data','sync'];
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('hidden',closed.includes(b.dataset.t)&&!ui.me));
+  if(!ui.me&&closed.includes(ui.tab)){
+    ui.tab='sched';
+    document.querySelectorAll('#tabs button').forEach(x=>x.classList.toggle('active',x.dataset.t==='sched'));
+  }
+}
+function openLoginModal(){
+  modal('Вход для администратора',
+    '<div class="field"><label class="f">Логин</label><input id="lg-login" placeholder="admin"></div>'+
+    '<div class="field"><label class="f">Пароль</label><input id="lg-pass" type="password" placeholder="••••••"></div>'+
+    '<div id="lg-err" class="err hidden"></div>'+
+    '<p class="muted" style="font-size:12.5px;margin:0">По умолчанию admin / admin. Без входа график открыт только для просмотра.</p>',
+    '<button class="btn primary" onclick="doLogin()">Войти</button>');
+  setTimeout(function(){
+    const l=document.getElementById('lg-login'),p=document.getElementById('lg-pass');
+    if(!l)return; l.focus();
+    [l,p].forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();}));
+  },40);
+}
+function doLogin(){
+  const l=(document.getElementById('lg-login').value||'').trim();
+  const p=document.getElementById('lg-pass').value;
+  const a=db.admins.find(x=>x.login.toLowerCase()===l.toLowerCase()&&x.pass===p);
+  const err=document.getElementById('lg-err');
+  if(!a){err.textContent='Неверный логин или пароль';err.classList.remove('hidden');return;}
+  ui.me=a; sessionStorage.setItem('grafik_me',a.id); closeModal(); render(); toast('Вы вошли: '+(a.name||a.login));
+}
+function logout(){ui.me=null;sessionStorage.removeItem('grafik_me');render();toast('Режим просмотра');}
+
+/* ---------- Вкладки ---------- */
+document.getElementById('tabs').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-t]');if(!b)return;
+  ui.tab=b.dataset.t;
+  [...document.querySelectorAll('#tabs button')].forEach(x=>x.classList.toggle('active',x===b));
+  render();
+});
+function render(){
+  renderAuth();
+  ['sched','emps','objs','admins','sync','data'].forEach(t=>
+    document.getElementById('v-'+t).classList.toggle('hidden',ui.tab!==t));
+  if(ui.tab==='sched')  renderSched();
+  if(ui.tab==='emps')   renderEmps();
+  if(ui.tab==='objs')   renderObjs();
+  if(ui.tab==='admins') renderAdmins();
+  if(ui.tab==='sync')   renderSync();
+  if(ui.tab==='data')   renderData();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function toast(t){const d=document.createElement('div');d.className='toast';d.textContent=t;document.body.appendChild(d);
+  setTimeout(()=>d.remove(),2200);}
+
+/* =========================================================
+   ГРАФИК
+   ========================================================= */
+function renderSched(){
+  const host=document.getElementById('v-sched');
+  if(!db.objects.length){host.innerHTML='<div class="card empty">Сначала добавьте объект (филиал) во вкладке «Объекты».</div>';return;}
+  if(!ui.objectId||!objById(ui.objectId)) ui.objectId=db.objects[0].id;
+  const y=ui.year,m=ui.month,obj=objById(ui.objectId);
+  const dim=daysInMonth(y,m);
+  const emps=db.employees.filter(e=>e.objectId===obj.id);
+
+  let head='<div class="toolbar">'+
+    '<div><label class="f">Год</label><div class="yearpick"><button onclick="stepYear(-1)">‹</button>'+
+      '<span class="y">'+y+'</span><button onclick="stepYear(1)">›</button></div></div>'+
+    '<div style="min-width:260px;flex:1"><label class="f">Объект (филиал)</label><select onchange="ui.objectId=this.value;render()">'+
+      db.objects.map(o=>'<option value="'+o.id+'"'+(o.id===obj.id?' selected':'')+'>'+esc(o.name)+' — '+esc(o.code)+'</option>').join('')+
+    '</select></div>'+
+    (isAdmin()?'<button class="btn" onclick="openEmpModal()">＋ Сотрудник</button>'+'<button class="btn" onclick="openVacancyModal()">＋ Вакансия</button>'+'<button class="btn primary" onclick="openPeriodModal()">Отпуск / замена за период</button>':'')+
+  '</div>'+
+  '<div class="months">'+MONTHS.map((n,i)=>'<button class="'+(i+1===m?'active':'')+'" onclick="ui.month='+(i+1)+';render()">'+n+'</button>').join('')+'</div>';
+
+  /* заголовок таблицы */
+  let ths='';
+  for(let d=1;d<=dim;d++){
+    const wd=new Date(y,m-1,d).getDay(); const w=(wd===0||wd===6);
+    ths+='<th class="day'+(w?' wknd':'')+'"><div style="font-weight:700">'+d+'</div><div style="font-size:10px;font-weight:500;opacity:.7">'+WD[wd]+'</div></th>';
+  }
+
+  let rows='',coverDays={},totalCover=0;
+  emps.forEach((e,i)=>{
+    let tds='',days=0,cover=0;
+    for(let d=1;d<=dim;d++){
+      const st=cellState(e,y,m,d);
+      const wd=new Date(y,m-1,d).getDay(); const wknd=(wd===0||wd===6);
+      let cls='cell',txt='';
+      if(st.type==='sub'){const o=objById(st.objId);txt=o?o.code:'ЗМ';cls+=' s-sub';}
+      else{txt=STATES[st.type].txt;cls+=' '+STATES[st.type].cls;}
+      if(e.vacancy&&st.base&&st.type!=='sub'){cls='cell s-vacancy';txt='11';}
+      const need=needsCover(e,st);
+      if(need){cover++;totalCover++;coverDays[d]=(coverDays[d]||0)+1;}
+      if(['work','extra'].includes(st.type)&&!e.vacancy) days++;
+      const title=(e.vacancy&&st.base?'Вакансия — нужно перекрыть':STATES[st.type].label)+(st.type==='sub'?': '+txt:'');
+      tds+='<td class="day'+(wknd?' wkndcol':'')+'"><button class="'+cls+'" title="'+esc(title)+'" onclick="openCell(\''+e.id+'\','+d+')">'+esc(txt)+'</button></td>';
+    }
+    rows+='<tr class="'+(e.vacancy?'vacancy':'')+'">'+
+      '<td class="c-num sticky1">'+(i+1)+'</td>'+
+      '<td class="c-fio sticky2">'+esc(empName(e))+'<span class="pos">'+esc(e.position||'')+(cover?' · перекрыть: '+cover:'')+'</span></td>'+
+      '<td class="c-tel">'+esc(e.phone||'—')+'</td>'+
+      '<td class="c-gr">№'+esc(e.graph)+'</td>'+tds+
+      '<td class="tot">'+days+'</td><td class="tot">'+(days*HOURS)+'</td></tr>';
+  });
+  if(!emps.length) rows='<tr><td colspan="'+(dim+6)+'" class="empty">В этом объекте нет сотрудников. Добавьте сотрудника или вакансию.</td></tr>';
+
+  /* строка «нужно перекрыть» */
+  let coverTds='';
+  for(let d=1;d<=dim;d++){const c=coverDays[d]||0;
+    coverTds+='<td class="day" style="'+(c?'background:var(--red-soft);color:#B0392E':'color:var(--border)')+';font-weight:700">'+(c||'')+'</td>';}
+  const covRow=emps.length?'<tr class="totrow"><td class="c-num sticky1"></td><td class="c-fio sticky2">Нужно перекрыть (смен)</td>'+
+    '<td class="c-tel"></td><td class="c-gr"></td>'+coverTds+'<td class="tot">'+totalCover+'</td><td class="tot">'+(totalCover*HOURS)+'</td></tr>':'';
+
+  const legend='<div class="legend">'+
+    kk('s-work','11 — смена 11 ч')+kk('s-extra','11 — доп. смена (перекрытие)')+kk('s-vac','О — отпуск')+
+    kk('s-sick','Б — больничный')+kk('s-need','РВ — нужна замена')+kk('s-sub','Ф2 — замена на другом объекте')+
+    kk('s-vacancy','Вакансия — смена не закрыта')+'</div>';
+
+  const bar='<div class="coverbar">'+
+    '<span class="pill '+(totalCover?'warn':'ok')+'">'+(totalCover?'Нужно перекрыть: '+totalCover+' смен · '+(totalCover*HOURS)+' ч':'Все смены закрыты')+'</span>'+
+    '<span class="pill">Сотрудников: '+emps.filter(e=>!e.vacancy).length+'</span>'+
+    '<span class="pill">Вакансий: '+emps.filter(e=>e.vacancy).length+'</span>'+
+    (totalCover?'<div class="coverlist">Даты для перекрытия: '+Object.keys(coverDays).map(d=>d+' '+MON_SHORT[m-1]+' ('+coverDays[d]+')').join(', ')+'</div>':'')+
+  '</div>';
+
+  host.innerHTML=head+'<div class="sheet">'+
+    '<div class="sheet-head"><div><h2>'+esc(obj.name)+'</h2>'+
+      '<div class="sub">'+MONTHS[m-1]+' '+y+' · смены по 11 часов · короткое обозначение объекта: <b>'+esc(obj.code)+'</b></div></div></div>'+
+    '<div class="tablewrap"><table class="sch"><thead><tr>'+
+      '<th class="c-num sticky1">№</th><th class="c-fio sticky2">ФИО</th><th class="c-tel">Телефон</th><th class="c-gr">№ гр.</th>'+ths+
+      '<th class="tot">Дней</th><th class="tot">Часов</th></tr></thead>'+
+      '<tbody>'+rows+covRow+'</tbody></table></div>'+legend+bar+'</div>';
+}
+function kk(cls,t){return '<span class="k"><i class="sw '+cls+'"></i>'+t+'</span>';}
+function stepYear(n){ui.year+=n;render();}
+
+/* =========================================================
+   Модальные окна
+   ========================================================= */
+function modal(title,body,foot){
+  document.getElementById('modal-root').innerHTML=
+   '<div class="overlay" onclick="if(event.target===this)closeModal()"><div class="modal">'+
+   '<div class="m-head"><h3>'+title+'</h3><button class="btn ghost sm" onclick="closeModal()">✕</button></div>'+
+   '<div class="m-body">'+body+'</div><div class="m-foot">'+(foot||'')+'</div></div></div>';
+}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+
+/* --- редактор ячейки --- */
+let cellCtx=null;
+function openCell(empId,d){
+  if(!needAdmin())return;
+  const e=db.employees.find(x=>x.id===empId);if(!e)return;
+  cellCtx={empId,d};
+  const st=cellState(e,ui.year,ui.month,d);
+  const opts=[['work','Смена 11 ч'],['off','Выходной'],['vac','Отпуск'],['sick','Больничный'],
+              ['need','Нужна замена (РВ)'],['sub','Замена на другом объекте']];
+  const others=db.objects.filter(o=>o.id!==e.objectId);
+  modal(esc(empName(e))+' · '+d+' '+MONTHS[ui.month-1],
+    '<p class="muted" style="font-size:13px;margin-top:0">По графику №'+esc(e.graph)+' этот день — <b>'+(st.base?'рабочий (11 ч)':'выходной')+'</b>.</p>'+
+    '<div class="choice">'+opts.map(([v,l])=>'<button class="'+(st.type===v||(v==="work"&&st.type==="extra")?'on':'')+'" onclick="setCell(\''+v+'\')">'+l+'</button>').join('')+'</div>'+
+    '<div id="subwrap" class="hidden"><label class="f">Объект замены (в графике встанет короткое обозначение)</label>'+
+      '<select id="subobj">'+(others.length?others.map(o=>'<option value="'+o.id+'">'+esc(o.name)+' — '+esc(o.code)+'</option>').join(''):'<option value="">нет других объектов</option>')+'</select>'+
+      '<div class="row" style="margin-top:12px"><button class="btn primary" onclick="applySub()">Назначить замену</button></div></div>',
+    '<button class="btn" onclick="clearCell()">Сбросить к графику</button>');
+}
+function setCell(v){
+  if(v==='sub'){document.getElementById('subwrap').classList.remove('hidden');return;}
+  db.marks[key(cellCtx.empId,ui.year,ui.month,cellCtx.d)]={type:v};save();closeModal();render();
+}
+function applySub(){
+  const o=document.getElementById('subobj').value;if(!o){toast('Добавьте второй объект');return;}
+  db.marks[key(cellCtx.empId,ui.year,ui.month,cellCtx.d)]={type:'sub',objId:o};save();closeModal();render();
+}
+function clearCell(){delete db.marks[key(cellCtx.empId,ui.year,ui.month,cellCtx.d)];save();closeModal();render();}
+
+/* --- отпуск / замена за период --- */
+function openPeriodModal(){
+  if(!needAdmin())return;
+  const emps=db.employees.filter(e=>!e.vacancy);
+  if(!emps.length){toast('Сначала добавьте сотрудников');return;}
+  const d1=ui.year+'-'+String(ui.month).padStart(2,'0')+'-01';
+  modal('Отпуск / замена за период',
+    '<div class="field"><label class="f">Сотрудник</label><select id="p-emp">'+
+      emps.map(e=>'<option value="'+e.id+'">'+esc(e.fio)+' — '+esc(objById(e.objectId)?objById(e.objectId).name:'')+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label class="f">Тип</label><select id="p-type" onchange="document.getElementById(\'p-objwrap\').classList.toggle(\'hidden\',this.value!==\'sub\')">'+
+      '<option value="vac">Отпуск</option><option value="sick">Больничный</option>'+
+      '<option value="need">Нужна замена (РВ)</option><option value="sub">Замена на другом объекте</option></select></div>'+
+    '<div class="field hidden" id="p-objwrap"><label class="f">Объект замены</label><select id="p-obj">'+
+      db.objects.map(o=>'<option value="'+o.id+'">'+esc(o.name)+' — '+esc(o.code)+'</option>').join('')+'</select></div>'+
+    '<div class="grid2"><div><label class="f">С даты</label><input type="date" id="p-from" value="'+d1+'"></div>'+
+      '<div><label class="f">По дату</label><input type="date" id="p-to" value="'+d1+'"></div></div>'+
+    '<p class="muted" style="font-size:12.5px">Отметка ставится на каждый день периода. Рабочие смены в этот период попадут в «Нужно перекрыть».</p>',
+    '<button class="btn" onclick="applyPeriod(true)">Очистить период</button>'+
+    '<button class="btn primary" onclick="applyPeriod(false)">Применить</button>');
+}
+function applyPeriod(clear){
+  const id=document.getElementById('p-emp').value,t=document.getElementById('p-type').value;
+  const f=document.getElementById('p-from').value,to=document.getElementById('p-to').value;
+  if(!f||!to){toast('Укажите даты');return;}
+  const objId=t==='sub'?document.getElementById('p-obj').value:undefined;
+  let a=new Date(f+'T00:00:00'),b=new Date(to+'T00:00:00'),n=0;
+  if(b<a){toast('Дата «по» раньше даты «с»');return;}
+  while(a<=b){const k=key(id,a.getFullYear(),a.getMonth()+1,a.getDate());
+    if(clear)delete db.marks[k];else db.marks[k]=objId?{type:t,objId}:{type:t};
+    n++;a.setDate(a.getDate()+1);}
+  save();closeModal();render();toast((clear?'Очищено дней: ':'Отмечено дней: ')+n);
+}
+
+/* --- сотрудник / вакансия --- */
+function openEmpModal(id){
+  if(!needAdmin())return;
+  const e=id?db.employees.find(x=>x.id===id):null;
+  modal(e?'Изменить сотрудника':'Новый сотрудник',
+    '<div class="field"><label class="f">ФИО</label><input id="e-fio" placeholder="Фамилия Имя Отчество" value="'+esc(e?e.fio:'')+'"></div>'+
+    '<div class="grid2"><div class="field"><label class="f">Телефон</label><input id="e-tel" placeholder="+7 ..." value="'+esc(e?e.phone:'')+'"></div>'+
+    '<div class="field"><label class="f">№ графика (1–14)</label><input id="e-gr" type="number" min="1" max="14" value="'+esc(e?e.graph:1)+'"></div></div>'+
+    '<div class="grid2"><div class="field"><label class="f">Должность</label><input id="e-pos" value="'+esc(e?e.position:'')+'"></div>'+
+    '<div class="field"><label class="f">Объект</label><select id="e-obj">'+db.objects.map(o=>'<option value="'+o.id+'"'+((e?e.objectId:ui.objectId)===o.id?' selected':'')+'>'+esc(o.name)+'</option>').join('')+'</select></div></div>',
+    (e?'<button class="btn danger" onclick="delEmp(\''+e.id+'\')">Удалить</button>':'')+
+    '<button class="btn primary" onclick="saveEmp('+(e?"'"+e.id+"'":'null')+')">Сохранить</button>');
+}
+function saveEmp(id){
+  const o={fio:document.getElementById('e-fio').value.trim(),phone:document.getElementById('e-tel').value.trim(),
+    graph:Math.min(14,Math.max(1,Number(document.getElementById('e-gr').value)||1)),
+    position:document.getElementById('e-pos').value.trim(),objectId:document.getElementById('e-obj').value};
+  if(!o.fio){toast('Укажите ФИО');return;}
+  if(id){Object.assign(db.employees.find(x=>x.id===id),o);}
+  else{db.employees.push(Object.assign({id:uid('e'),vacancy:false},o));}
+  save();closeModal();render();toast('Сохранено');
+}
+function delEmp(id){
+  if(!needAdmin())return;
+  if(!confirm('Удалить сотрудника и все его отметки?'))return;
+  db.employees=db.employees.filter(e=>e.id!==id);
+  Object.keys(db.marks).forEach(k=>{if(k.split('|')[0]===id)delete db.marks[k];});
+  save();closeModal();render();toast('Удалено');
+}
+function openVacancyModal(){
+  if(!needAdmin())return;
+  modal('Новая вакансия',
+    '<p class="muted" style="font-size:13px;margin-top:0">Строка без сотрудника: в графике будет «Вакансия», а её смены подсветятся как требующие перекрытия.</p>'+
+    '<div class="grid2"><div class="field"><label class="f">№ графика (1–14)</label><input id="v-gr" type="number" min="1" max="14" value="1"></div>'+
+    '<div class="field"><label class="f">Должность</label><input id="v-pos" value="Продавец"></div></div>'+
+    '<div class="field"><label class="f">Объект</label><select id="v-obj">'+db.objects.map(o=>'<option value="'+o.id+'"'+(ui.objectId===o.id?' selected':'')+'>'+esc(o.name)+'</option>').join('')+'</select></div>',
+    '<button class="btn primary" onclick="saveVacancy()">Добавить</button>');
+}
+function saveVacancy(){
+  db.employees.push({id:uid('e'),vacancy:true,fio:'',phone:'',
+    graph:Math.min(14,Math.max(1,Number(document.getElementById('v-gr').value)||1)),
+    position:document.getElementById('v-pos').value.trim(),objectId:document.getElementById('v-obj').value});
+  save();closeModal();render();toast('Вакансия добавлена');
+}
+
+/* =========================================================
+   Сотрудники
+   ========================================================= */
+function renderEmps(){
+  const host=document.getElementById('v-emps');
+  const rows=db.employees.map(e=>'<tr><td><b>'+esc(empName(e))+'</b>'+(e.vacancy?' <span class="tag">вакансия</span>':'')+'</td>'+
+    '<td>'+esc(e.phone||'—')+'</td><td><span class="tag blue">№'+esc(e.graph)+'</span></td><td>'+esc(e.position||'—')+'</td>'+
+    '<td>'+esc(objById(e.objectId)?objById(e.objectId).name:'—')+'</td>'+
+    '<td style="text-align:right;white-space:nowrap">'+(!isAdmin()?'':(e.vacancy?'':'<button class="btn sm" onclick="openEmpModal(\''+e.id+'\')">Изменить</button> ')+
+      '<button class="btn sm danger" onclick="delEmp(\''+e.id+'\')">Удалить</button>')+'</td></tr>').join('');
+  host.innerHTML='<div class="row" style="justify-content:space-between;margin-bottom:16px"><h1>Сотрудники</h1>'+
+    (isAdmin()?'<div class="row"><button class="btn" onclick="openVacancyModal()">＋ Вакансия</button>'+'<button class="btn primary" onclick="openEmpModal()">＋ Сотрудник</button></div>':'')+'</div>'+
+    '<div class="card" style="padding:0;overflow:hidden">'+(db.employees.length?
+      '<table class="list"><thead><tr><th>ФИО</th><th>Телефон</th><th>№ графика</th><th>Должность</th><th>Объект</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+      :'<div class="empty">Пока никого нет</div>')+'</div>';
+}
+
+/* =========================================================
+   Объекты
+   ========================================================= */
+function renderObjs(){
+  const host=document.getElementById('v-objs');
+  const rows=db.objects.map(o=>{const cnt=db.employees.filter(e=>e.objectId===o.id).length;
+    return '<tr><td><b>'+esc(o.name)+'</b></td><td><span class="tag blue">'+esc(o.code)+'</span></td>'+
+    '<td>'+esc(o.address||'—')+'</td><td>'+cnt+'</td>'+
+    '<td style="text-align:right;white-space:nowrap">'+(isAdmin()?'<button class="btn sm" onclick="openObjModal(\''+o.id+'\')">Изменить</button> '+'<button class="btn sm danger" onclick="delObj(\''+o.id+'\')">Удалить</button>':'')+'</td></tr>';}).join('');
+  host.innerHTML='<div class="row" style="justify-content:space-between;margin-bottom:16px"><h1>Объекты (филиалы)</h1>'+
+    (isAdmin()?'<button class="btn primary" onclick="openObjModal()">＋ Объект</button>':'')+'</div>'+
+    '<p class="muted" style="margin-top:-8px;font-size:14px">Короткое обозначение объекта подставляется в график сотрудника, когда он выходит на замену на другом объекте.</p>'+
+    '<div class="card" style="padding:0;overflow:hidden">'+(db.objects.length?
+      '<table class="list"><thead><tr><th>Название</th><th>Короткое обозначение</th><th>Адрес</th><th>Сотрудников</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>'
+      :'<div class="empty">Объектов пока нет</div>')+'</div>';
+}
+function openObjModal(id){
+  if(!needAdmin())return;
+  const o=id?objById(id):null;
+  modal(o?'Изменить объект':'Новый объект',
+    '<div class="field"><label class="f">Название филиала</label><input id="o-name" placeholder="Филиал №3 — Южный" value="'+esc(o?o.name:'')+'"></div>'+
+    '<div class="grid2"><div class="field"><label class="f">Короткое обозначение</label><input id="o-code" maxlength="6" placeholder="Ф3" value="'+esc(o?o.code:'')+'"></div>'+
+    '<div class="field"><label class="f">Адрес</label><input id="o-addr" value="'+esc(o?o.address:'')+'"></div></div>',
+    '<button class="btn primary" onclick="saveObj('+(o?"'"+o.id+"'":'null')+')">Сохранить</button>');
+}
+function saveObj(id){
+  const name=document.getElementById('o-name').value.trim(),code=document.getElementById('o-code').value.trim(),
+        address=document.getElementById('o-addr').value.trim();
+  if(!name||!code){toast('Название и обозначение обязательны');return;}
+  if(id)Object.assign(objById(id),{name,code,address});
+  else db.objects.push({id:uid('o'),name,code,address});
+  save();closeModal();render();toast('Сохранено');
+}
+function delObj(id){
+  if(!needAdmin())return;
+  const cnt=db.employees.filter(e=>e.objectId===id).length;
+  if(!confirm('Удалить объект'+(cnt?' и '+cnt+' его строк(и) сотрудников/вакансий?':'?')))return;
+  db.employees.filter(e=>e.objectId===id).forEach(e=>{Object.keys(db.marks).forEach(k=>{if(k.split('|')[0]===e.id)delete db.marks[k];});});
+  db.employees=db.employees.filter(e=>e.objectId!==id);
+  db.objects=db.objects.filter(o=>o.id!==id);
+  if(ui.objectId===id)ui.objectId=db.objects[0]?db.objects[0].id:null;
+  save();render();toast('Удалено');
+}
+
+/* =========================================================
+   Админы
+   ========================================================= */
+function renderAdmins(){
+  const host=document.getElementById('v-admins');
+  const rows=db.admins.map(a=>'<tr><td><b>'+esc(a.name||a.login)+'</b></td><td>'+esc(a.login)+'</td>'+
+    '<td><span class="tag">'+esc(a.role||'Администратор')+'</span></td>'+
+    '<td style="text-align:right;white-space:nowrap"><button class="btn sm" onclick="openAdminModal(\''+a.id+'\')">Изменить</button> '+
+    (db.admins.length>1?'<button class="btn sm danger" onclick="delAdmin(\''+a.id+'\')">Удалить</button>':'')+'</td></tr>').join('');
+  host.innerHTML='<div class="row" style="justify-content:space-between;margin-bottom:16px"><h1>Учётные записи админов</h1>'+
+    '<button class="btn primary" onclick="openAdminModal()">＋ Админ</button></div>'+
+    '<div class="card" style="padding:0;overflow:hidden"><table class="list"><thead><tr><th>Имя</th><th>Логин</th><th>Роль</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function openAdminModal(id){
+  if(!needAdmin())return;
+  const a=id?db.admins.find(x=>x.id===id):null;
+  modal(a?'Изменить админа':'Новый админ',
+    '<div class="field"><label class="f">Имя</label><input id="a-name" value="'+esc(a?a.name:'')+'"></div>'+
+    '<div class="grid2"><div class="field"><label class="f">Логин</label><input id="a-login" value="'+esc(a?a.login:'')+'"></div>'+
+    '<div class="field"><label class="f">Пароль</label><input id="a-pass" value="'+esc(a?a.pass:'')+'"></div></div>'+
+    '<div class="field"><label class="f">Роль</label><select id="a-role">'+['Владелец','Администратор','Менеджер объекта'].map(r=>'<option'+((a&&a.role===r)?' selected':'')+'>'+r+'</option>').join('')+'</select></div>',
+    '<button class="btn primary" onclick="saveAdmin('+(a?"'"+a.id+"'":'null')+')">Сохранить</button>');
+}
+function saveAdmin(id){
+  const name=document.getElementById('a-name').value.trim(),login=document.getElementById('a-login').value.trim(),
+        pass=document.getElementById('a-pass').value,role=document.getElementById('a-role').value;
+  if(!login||!pass){toast('Логин и пароль обязательны');return;}
+  if(db.admins.some(x=>x.login.toLowerCase()===login.toLowerCase()&&x.id!==id)){toast('Такой логин уже есть');return;}
+  if(id)Object.assign(db.admins.find(x=>x.id===id),{name,login,pass,role});
+  else db.admins.push({id:uid('a'),name,login,pass,role});
+  save();closeModal();render();toast('Сохранено');
+}
+function delAdmin(id){
+  if(!needAdmin())return;
+  if(db.admins.length<2)return;
+  if(!confirm('Удалить учётную запись?'))return;
+  db.admins=db.admins.filter(a=>a.id!==id);save();render();
+}
+
+/* =========================================================
+   Данные (экспорт/импорт)
+   ========================================================= */
+function renderData(){
+  const host=document.getElementById('v-data');
+  host.innerHTML='<h1 style="margin-bottom:16px">Данные</h1>'+
+  '<div class="card" style="max-width:760px"><h3>Резервная копия базы</h3>'+
+  '<p class="muted" style="font-size:14px">База хранится в этом браузере. Выгрузите файл, чтобы перенести данные на другой компьютер.</p>'+
+  '<div class="row"><button class="btn primary" onclick="expJSON()">Скачать JSON</button>'+
+  '<label class="btn" style="cursor:pointer">Загрузить JSON<input type="file" accept="application/json" onchange="impJSON(this)" style="display:none"></label>'+
+  '<button class="btn" onclick="expCSV()">График в CSV</button>'+
+  '<button class="btn danger" onclick="resetAll()">Сбросить всё</button></div>'+
+  '<hr style="border:none;border-top:1px solid var(--border);margin:24px 0">'+
+  '<h3>Как считается график</h3><p class="muted" style="font-size:14px;margin-bottom:0">Цикл 14 дней: 2 смены — 2 выходных — 3 смены — 2 выходных — 2 смены — 3 выходных (по 11 часов, 182 смены и 2002 часа в году). '+
+  'Графики №1 и №2 совпадают с вашими файлами за 2026 год (№2 идёт в противофазе к №1), номера 3–14 — дальнейшие сдвиги того же цикла. 1 января — нерабочий.</p></div>';
+}
+function expJSON(){dl('grafik-baza.json',JSON.stringify(db,null,2),'application/json');}
+function impJSON(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();
+  r.onload=()=>{try{const d=JSON.parse(r.result);db=Object.assign(defaultDB(),d);save();ui.objectId=db.objects[0]&&db.objects[0].id;render();toast('База загружена');}catch(e){toast('Ошибка файла');}};r.readAsText(f);}
+function expCSV(){
+  const y=ui.year,m=ui.month,dim=daysInMonth(y,m),obj=objById(ui.objectId);
+  let out=['"'+obj.name+'";"'+MONTHS[m-1]+' '+y+'"'];
+  let h=['ФИО','Телефон','№ гр.'];for(let d=1;d<=dim;d++)h.push(d);h.push('Дней','Часов');
+  out.push(h.join(';'));
+  db.employees.filter(e=>e.objectId===obj.id).forEach(e=>{
+    let r=['"'+empName(e)+'"','"'+(e.phone||'')+'"','№'+e.graph],days=0;
+    for(let d=1;d<=dim;d++){const st=cellState(e,y,m,d);
+      let t=st.type==='sub'?(objById(st.objId)||{}).code||'ЗМ':STATES[st.type].txt;
+      if(e.vacancy&&st.base)t='11';
+      if(['work','extra'].includes(st.type)&&!e.vacancy)days++;r.push(t);}
+    r.push(days,days*HOURS);out.push(r.join(';'));});
+  dl('grafik-'+y+'-'+String(m).padStart(2,'0')+'.csv','\ufeff'+out.join('\n'),'text/csv');
+}
+function dl(name,content,type){const b=new Blob([content],{type});const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download=name;a.click();URL.revokeObjectURL(a.href);}
+function resetAll(){if(!confirm('Удалить все данные и вернуть демо-базу?'))return;db=defaultDB();save();ui.objectId=db.objects[0].id;render();}
+
+/* =========================================================
+   ОБЩАЯ БАЗА (Supabase REST) — видна всем, кто открыл сайт
+   ========================================================= */
+const SKEY='grafik_sync';
+let syncState={status:'off',at:null};
+function syncCfg(){try{return JSON.parse(localStorage.getItem(SKEY))||{};}catch(e){return {};}}
+function saveSyncCfg(c){localStorage.setItem(SKEY,JSON.stringify(c));}
+function syncOn(){const c=syncCfg();return !!(c.url&&c.key);}
+function sApi(path,opts){
+  const c=syncCfg();
+  return fetch(c.url.replace(/\/$/,'')+'/rest/v1/'+path,Object.assign({
+    headers:{apikey:c.key,Authorization:'Bearer '+c.key,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates'}
+  },opts||{}));
+}
+async function pullRemote(silent){
+  if(!syncOn())return;
+  const c=syncCfg(),row=c.row||1;
+  try{
+    const r=await sApi('grafik_state?id=eq.'+row+'&select=data,updated_at');
+    if(!r.ok) throw new Error(r.status);
+    const j=await r.json();
+    if(j&&j[0]&&j[0].data&&j[0].data.objects){
+      const me=ui.me;
+      db=Object.assign(defaultDB(),j[0].data);
+      localStorage.setItem(KEY,JSON.stringify(db));
+      ui.me=me&&db.admins.find(a=>a.id===me.id)||me;
+      if(!objById(ui.objectId))ui.objectId=db.objects[0]&&db.objects[0].id;
+      syncState={status:'ok',at:new Date()};
+      render();
+      if(!silent)toast('Загружено из общей базы');
+    }else{syncState={status:'empty',at:new Date()};if(!silent)toast('В общей базе пока нет данных');}
+  }catch(e){syncState={status:'error',at:new Date()};if(!silent)toast('Нет связи с базой');}
+  if(ui.tab==='sync')renderSync();
+}
+async function pushRemote(silent){
+  if(!syncOn())return;
+  const c=syncCfg(),row=c.row||1;
+  try{
+    const r=await sApi('grafik_state',{method:'POST',body:JSON.stringify([{id:row,data:db,updated_at:new Date().toISOString()}])});
+    if(!r.ok) throw new Error(r.status);
+    syncState={status:'ok',at:new Date()};
+    if(!silent)toast('Сохранено в общую базу');
+  }catch(e){syncState={status:'error',at:new Date()};if(!silent)toast('Не удалось сохранить в общую базу');}
+  if(ui.tab==='sync')renderSync();
+}
+let pushTimer=null;
+function queuePush(){if(!syncOn()||!isAdmin())return;clearTimeout(pushTimer);pushTimer=setTimeout(()=>pushRemote(true),700);}
+
+function renderSync(){
+  const c=syncCfg(),host=document.getElementById('v-sync');
+  const st=!syncOn()?'<span class="pill">Не настроено</span>':
+    (syncState.status==='ok'?'<span class="pill ok">Связь есть'+(syncState.at?' · '+syncState.at.toLocaleTimeString('ru-RU'):'')+'</span>':
+     syncState.status==='error'?'<span class="pill warn">Ошибка связи</span>':'<span class="pill">Ожидание</span>');
+  const link=(syncOn()?location.href.split('#')[0]+'#db='+btoa(unescape(encodeURIComponent(JSON.stringify({url:c.url,key:c.key,row:c.row||1})))):'');
+  host.innerHTML='<h1 style="margin-bottom:8px">Общая база данных</h1>'+
+  '<p class="muted" style="font-size:14px;max-width:760px">Подключите бесплатную базу Supabase — тогда график будет общим: админы меняют, остальные видят те же данные с любого устройства.</p>'+
+  '<div class="card" style="max-width:760px;margin-bottom:16px"><div class="row" style="margin-bottom:16px">'+st+'</div>'+
+  '<div class="field"><label class="f">Project URL</label><input id="s-url" placeholder="https://xxxx.supabase.co" value="'+esc(c.url||'')+'"></div>'+
+  '<div class="field"><label class="f">anon public key</label><input id="s-key" placeholder="eyJhbGci..." value="'+esc(c.key||'')+'"></div>'+
+  '<div class="field" style="max-width:160px"><label class="f">№ записи</label><input id="s-row" type="number" min="1" value="'+esc(c.row||1)+'"></div>'+
+  '<div class="row"><button class="btn primary" onclick="saveSync()">Сохранить и проверить</button>'+
+  '<button class="btn" onclick="pullRemote()">Загрузить из базы</button>'+
+  '<button class="btn" onclick="pushRemote()">Выгрузить в базу</button></div></div>'+
+  (link?'<div class="card" style="max-width:760px;margin-bottom:16px"><h3>Ссылка для сотрудников</h3>'+
+    '<p class="muted" style="font-size:13px">Открыв такую ссылку, человек сразу увидит график из общей базы в режиме просмотра.</p>'+
+    '<input readonly value="'+esc(link)+'" onclick="this.select()"></div>':'')+
+  '<div class="card" style="max-width:760px"><h3>Как настроить (5 минут)</h3>'+
+  '<ol class="muted" style="font-size:14px;padding-left:20px">'+
+  '<li>Зарегистрируйтесь на supabase.com и создайте бесплатный проект.</li>'+
+  '<li>SQL Editor → выполните запрос ниже.</li>'+
+  '<li>Settings → API: скопируйте Project URL и anon public key в поля выше.</li>'+
+  '<li>Нажмите «Сохранить и проверить», затем «Выгрузить в базу».</li></ol>'+
+  '<pre style="background:var(--soft);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12.5px;overflow:auto">'+
+  'create table grafik_state (\n  id int primary key,\n  data jsonb,\n  updated_at timestamptz default now()\n);\nalter table grafik_state enable row level security;\ncreate policy \"read all\"  on grafik_state for select using (true);\ncreate policy \"write all\" on grafik_state for all    using (true) with check (true);</pre></div>';
+}
+function saveSync(){
+  const c={url:document.getElementById('s-url').value.trim(),key:document.getElementById('s-key').value.trim(),
+           row:Number(document.getElementById('s-row').value)||1};
+  saveSyncCfg(c);pullRemote();
+}
+/* конфиг из ссылки #db=... */
+(function(){
+  const m=location.hash.match(/db=([^&]+)/);
+  if(m){try{const c=JSON.parse(decodeURIComponent(escape(atob(m[1]))));if(c.url&&c.key)saveSyncCfg(c);}catch(e){}}
+})();
+
+/* ---------- старт ---------- */
+(function start(){
+  const id=sessionStorage.getItem('grafik_me');
+  const a=id&&db.admins.find(x=>x.id===id);
+  if(a)ui.me=a;
+  render();
+  if(syncOn()){pullRemote(true);setInterval(()=>{if(!document.getElementById('modal-root').innerHTML)pullRemote(true);},20000);}
+})();
+</script>
+</body>
+</html>
