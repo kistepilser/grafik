@@ -13,7 +13,8 @@ function renderData(){
     '<div class="card"><h3>Сейчас в базе</h3>'+
       '<div class="stats">'+
         '<div class="stat"><b>'+db.objects.length+'</b><span>объектов</span></div>'+
-        '<div class="stat"><b>'+db.employees.filter(function(e){return !e.vacancy;}).length+'</b><span>сотрудников</span></div>'+
+        '<div class="stat"><b>'+db.employees.filter(function(e){return !e.vacancy&&!e.external;}).length+'</b><span>сотрудников</span></div>'+
+        '<div class="stat"><b>'+db.employees.filter(function(e){return e.external;}).length+'</b><span>из др. дивизионов</span></div>'+
         '<div class="stat"><b>'+db.employees.filter(function(e){return e.vacancy;}).length+'</b><span>вакансий</span></div>'+
         '<div class="stat"><b>'+Object.keys(db.marks).length+'</b><span>отметок</span></div>'+
         '<div class="stat"><b>'+db.admins.length+'</b><span>админов</span></div>'+

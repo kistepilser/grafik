@@ -1,3 +1,25 @@
+/* ---------- Тема оформления ---------- */
+var THKEY='grafik_theme';
+function currentTheme(){
+  var t=null; try{t=localStorage.getItem(THKEY);}catch(e){}
+  if(t==='light'||t==='dark')return t;
+  try{if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)return 'dark';}catch(e){}
+  return 'light';
+}
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  var b=document.getElementById('themesw');
+  if(b){b.setAttribute('aria-label', t==='dark'?'Светлая тема':'Тёмная тема');
+    b.title=t==='dark'?'Включить светлую тему':'Включить тёмную тему';
+    b.innerHTML='<i>'+(t==='dark'?'☾':'☀')+'</i>';}
+}
+function toggleTheme(){
+  var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+  try{localStorage.setItem(THKEY,t);}catch(e){}
+  applyTheme(t);
+}
+applyTheme(currentTheme());
+
 /* =========================================================
    Общее ядро сайта: база, графики, вход, шапка, синхронизация
    ========================================================= */
@@ -22,6 +44,7 @@ var BASE=Date.UTC(2026,0,1);
 var PHASES=[10,3,11,4,12,5,13,6,0,7,1,8,2,9];
 function phaseOf(g){g=Number(g)||1;return PHASES[((g-1)%14+14)%14];}
 function isShift(graph,y,m,d){
+  if(!Number(graph))return false; /* 0 = без своего графика (внешний сотрудник) */
   if(m===1&&d===1)return false;
   var diff=Math.round((Date.UTC(y,m-1,d)-BASE)/86400000);
   return CYCLE[((diff+phaseOf(graph))%14+14)%14]===1;
@@ -33,15 +56,17 @@ function key(empId,y,m,d){return empId+'|'+y+'-'+String(m).padStart(2,'0')+'-'+S
 function defaultDB(){
   return {
     objects:[
-      {id:'o1',name:'Филиал №1 — Центральный',code:'Ф1',address:''},
-      {id:'o2',name:'Филиал №2 — Северный',code:'Ф2',address:''}
+      {id:'o1',name:'Филиал №1 — Центральный',code:'Ф1',address:'г. Москва, ул. Ленина, 10',lat:55.7558,lng:37.6173,slots:[1,2,1]},
+      {id:'o2',name:'Филиал №2 — Северный',code:'Ф2',address:'г. Москва, Северный бульвар, 4',lat:55.8790,lng:37.6000,slots:[2,5]},
+      {id:'o3',name:'Филиал №3 — Ленинский',code:'Ф3',address:'г. Москва, ул. Ленина, 42',lat:55.7610,lng:37.6300,slots:[3,7]}
     ],
     employees:[
       {id:'e1',objectId:'o1',fio:'Иванов Иван Иванович',phone:'+7 900 000-00-01',graph:1,position:'Продавец',vacancy:false},
       {id:'e2',objectId:'o1',fio:'Петрова Мария Сергеевна',phone:'+7 900 000-00-02',graph:2,position:'Продавец',vacancy:false},
-      {id:'e3',objectId:'o1',fio:'',phone:'',graph:1,position:'Продавец',vacancy:true},
       {id:'e4',objectId:'o2',fio:'Сидоров Алексей Петрович',phone:'+7 900 000-00-03',graph:2,position:'Продавец',vacancy:false},
-      {id:'e5',objectId:'o2',fio:'Кузнецова Ольга Викторовна',phone:'+7 900 000-00-04',graph:5,position:'Продавец',vacancy:false}
+      {id:'e5',objectId:'o2',fio:'Кузнецова Ольга Викторовна',phone:'+7 900 000-00-04',graph:5,position:'Продавец',vacancy:false},
+      {id:'e7',objectId:'o3',fio:'Смирнов Павел Андреевич',phone:'+7 900 000-00-06',graph:3,position:'Продавец',vacancy:false},
+      {id:'e6',objectId:null,external:true,division:'Дивизион Юг',divCode:'ЮГ',fio:'Николаев Дмитрий Сергеевич',phone:'+7 900 000-00-05',graph:0,position:'Продавец',vacancy:false,address:'г. Москва, ул. Ленина, 18',note:'Выходит только на замены'}
     ],
     admins:[{id:'a1',login:'admin',pass:'admin',name:'Администратор',role:'Владелец'}],
     marks:{}
@@ -57,8 +82,112 @@ function toast(t){var d=document.createElement('div');d.className='toast';d.text
 function dl(name,content,type){var b=new Blob([content],{type:type});var a=document.createElement('a');
   a.href=URL.createObjectURL(b);a.download=name;a.click();URL.revokeObjectURL(a.href);}
 function objById(id){return db.objects.find(function(o){return o.id===id;});}
-function empById(id){return db.employees.find(function(e){return e.id===id;});}
+function empById(id){
+  var e=db.employees.find(function(x){return x.id===id;});
+  if(e)return e;
+  if(String(id).indexOf('va:')===0){
+    var parts=String(id).split(':');
+    return autoVacancies(parts[1]).find(function(x){return x.id===id;});
+  }
+  return undefined;
+}
 function empName(e){return e.vacancy?'Вакансия':(e.fio||'Без имени');}
+function isExternal(e){return !!(e&&e.external);}
+/* откуда сотрудник: свой объект или чужой дивизион */
+function empHome(e){
+  if(isExternal(e))return {name:e.division||'Другой дивизион',code:e.divCode||'ВНЕШ',ext:true};
+  var o=objById(e.objectId);
+  return {name:o?o.name:'Без объекта',code:o?o.code:'—',ext:false};
+}
+function graphLabel(e){return Number(e.graph)?('№'+e.graph):'без графика';}
+function initials(fio){
+  var t=String(fio||'').trim().split(/\s+/).filter(Boolean);
+  if(!t.length)return 'В';
+  return (t[0].charAt(0)+(t[1]?t[1].charAt(0):'')).toUpperCase();
+}
+function focusEnd(id){
+  var i=document.getElementById(id);if(!i)return;
+  i.focus();var v=i.value;i.value='';i.value=v;
+}
+
+/* ---------- Штат объекта и автоматические вакансии ---------- */
+function slotsOf(o){
+  if(!o)return [];
+  if(Array.isArray(o.slots))return o.slots.map(Number).filter(function(n){return n>=1&&n<=14;});
+  var n=Number(o.plan)||0,out=[];
+  for(var i=0;i<n;i++)out.push((i%14)+1);
+  return out;
+}
+/* ставки, на которых нет сотрудника — становятся строками «Вакансия» */
+function autoVacancies(objId){
+  var o=objById(objId);if(!o)return [];
+  var slots=slotsOf(o).slice();
+  if(!slots.length)return [];
+  db.employees.filter(function(e){return e.objectId===objId&&!e.external&&!e.vacancy;}).forEach(function(e){
+    var i=slots.indexOf(Number(e.graph));
+    if(i>=0)slots.splice(i,1);else slots.pop();
+  });
+  return slots.map(function(g,i){
+    return {id:'va:'+objId+':'+g+':'+i,objectId:objId,fio:'',phone:'',graph:g,
+      position:o.vacPos||'Продавец',vacancy:true,auto:true};
+  });
+}
+/* строки графика объекта: свои люди + вакансии */
+function empsFor(objId){
+  var own=db.employees.filter(function(e){return e.objectId===objId&&!e.external;});
+  return own.concat(autoVacancies(objId));
+}
+
+/* ---------- Близость объектов ---------- */
+var STOPW=['ул','улица','дом','пр','проспект','пер','переулок','город','гор','обл','корп','стр','шоссе','ш','бульвар','бр','филиал','отделение'];
+function addrTokens(s){
+  return String(s||'').toLowerCase().replace(/ё/g,'е').replace(/[^0-9a-zа-я]+/g,' ').split(' ')
+    .filter(function(t){return t.length>2&&STOPW.indexOf(t)<0;});
+}
+function addrScore(a,b){
+  var x=addrTokens(a),y=addrTokens(b);
+  if(!x.length||!y.length)return 0;
+  var hit=0;
+  x.forEach(function(t){if(y.indexOf(t)>=0)hit++;});
+  return hit/Math.min(x.length,y.length);
+}
+function kmBetween(a,b){
+  if(!(a&&b&&a.lat&&a.lng&&b.lat&&b.lng))return null;
+  var R=6371,dLat=(b.lat-a.lat)*Math.PI/180,dLng=(b.lng-a.lng)*Math.PI/180;
+  var s1=Math.sin(dLat/2),s2=Math.sin(dLng/2);
+  var h=s1*s1+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*s2*s2;
+  return Math.round(2*R*Math.asin(Math.sqrt(h))*10)/10;
+}
+/* близость между точками: км по координатам или совпадение адресов */
+function objProximity(from,to){
+  var km=kmBetween(from,to);
+  var sc=addrScore(from&&from.address,to&&to.address);
+  var label,rank;
+  if(km!=null){label=(km<1?'рядом (<1 км)':km+' км');rank=km;}
+  else if(sc>=0.5){label='тот же адрес/улица';rank=200;}
+  else if(sc>0){label='рядом по адресу';rank=400-sc*100;}
+  else {label='расстояние неизвестно';rank=5000;}
+  return {km:km,score:sc,label:label,rank:rank};
+}
+/* ближайшие к объекту другие объекты */
+function nearObjects(objId){
+  var base=objById(objId);if(!base)return [];
+  return db.objects.filter(function(o){return o.id!==objId;}).map(function(o){
+    var pr=objProximity(base,o);pr.obj=o;return pr;
+  }).sort(function(a,b){return a.rank-b.rank;});
+}
+/* близость сотрудника к объекту */
+function empProximity(objId,e){
+  var base=objById(objId);
+  if(isExternal(e)){
+    var pr=objProximity(base,{address:e.address||'',lat:null,lng:null});
+    pr.rank=(pr.rank>=5000?6000:pr.rank+150);
+    return pr;
+  }
+  var o=objById(e.objectId);
+  if(!o)return {km:null,score:0,label:'без объекта',rank:7000};
+  return objProximity(base,o);
+}
 function cellState(emp,y,m,d){
   var mk=db.marks[key(emp.id,y,m,d)];
   var base=isShift(emp.graph,y,m,d);
@@ -94,6 +223,7 @@ function availability(emp,y,m,d){
     if(mk.type==='off')return {free:true,why:'выходной'};
     if(mk.type==='work')return {free:false,why:'смена'};
   }
+  if(isExternal(emp)&&!Number(emp.graph))return {free:true,why:'из другого дивизиона · своего графика нет'};
   return base?{free:false,why:'смена по графику'}:{free:true,why:'выходной по графику'};
 }
 /* кого можно взять с других объектов на этот день */
@@ -103,7 +233,10 @@ function candidatesFor(objId,y,m,d){
     var a=availability(e,y,m,d);
     (a.free?free:busy).push({emp:e,why:a.why});
   });
-  free.sort(function(a,b){return a.emp.fio.localeCompare(b.emp.fio,'ru');});
+  free.sort(function(a,b){
+    var x=(isExternal(a.emp)?1:0)-(isExternal(b.emp)?1:0);
+    return x||a.emp.fio.localeCompare(b.emp.fio,'ru');
+  });
   return {free:free,busy:busy};
 }
 
@@ -158,9 +291,10 @@ function renderHeader(){
       '<div style="font-weight:600;font-size:15px">'+esc(cfg.title||'График смен')+'</div>'+
       '<div class="muted" style="font-size:12px">'+esc(cfg.subtitle||'')+'</div></div></a>'+
     '<nav class="tabs">'+nav+'</nav>'+
-    '<div class="userchip"><span id="syncbox"></span><span id="savebox" class="row"></span><span id="authbox" class="row"></span></div>'+
+    '<div class="userchip"><button id="themesw" class="themesw" onclick="toggleTheme()"><i>\u2600</i></button><span id="syncbox"></span><span id="savebox" class="row"></span><span id="authbox" class="row"></span></div>'+
   '</div>';
   renderAuth();renderSaveBtn();renderSyncChip();
+  applyTheme(document.documentElement.getAttribute('data-theme')||currentTheme());
 }
 function renderAuth(){
   var box=document.getElementById('authbox');if(!box)return;

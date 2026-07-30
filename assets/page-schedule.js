@@ -10,7 +10,7 @@ function renderSched(){
   if(!db.objects.length){host.innerHTML='<div class="card empty">Сначала добавьте объект (филиал) на странице «Объекты».</div>';return;}
   if(!ui.objectId||!objById(ui.objectId))ui.objectId=db.objects[0].id;
   var y=ui.year,m=ui.month,obj=objById(ui.objectId),dim=daysInMonth(y,m);
-  var emps=db.employees.filter(function(e){return e.objectId===obj.id;});
+  var emps=empsFor(obj.id);
 
   var head='<div class="toolbar">'+
     '<div><label class="f">Год</label><div class="yearpick"><button onclick="stepYear(-1)">‹</button>'+
@@ -18,7 +18,7 @@ function renderSched(){
     '<div style="min-width:260px;flex:1"><label class="f">Объект (филиал)</label><select onchange="setObject(this.value)">'+
       db.objects.map(function(o){return '<option value="'+o.id+'"'+(o.id===obj.id?' selected':'')+'>'+esc(o.name)+' — '+esc(o.code)+'</option>';}).join('')+
     '</select></div>'+
-    '<label class="btn" style="cursor:pointer"><input type="checkbox" style="width:16px;min-height:0" '+(showFree?'checked':'')+' onchange="toggleFree(this.checked)"> Свободные с других объектов</label>'+
+    '<label class="btn" style="cursor:pointer"><input type="checkbox" style="width:16px;min-height:0" '+(showFree?'checked':'')+' onchange="toggleFree(this.checked)"> Свободные с других объектов и дивизионов</label>'+
     (isAdmin()?'<button class="btn primary" onclick="openPeriodModal()">Отпуск / замена за период</button>':'')+
   '</div>'+
   '<div class="months">'+MONTHS.map(function(n,i){return '<button class="'+(i+1===m?'active':'')+'" onclick="setMonth('+(i+1)+')">'+n+'</button>';}).join('')+'</div>';
@@ -54,18 +54,19 @@ function renderSched(){
   /* --- замены с других объектов (автоматические строки) --- */
   var guests=guestsFor(obj.id,y,m),guestRows='',coveredDays={},totalCovered=0;
   guests.forEach(function(g){
-    var home=objById(g.emp.objectId),tds='',cnt=0;
+    var home=empHome(g.emp),tds='',cnt=0;
     for(var d=1;d<=dim;d++){
       var wd=new Date(y,m-1,d).getDay(),wknd=(wd===0||wd===6),on=g.days.indexOf(d)>=0;
       if(on){cnt++;coveredDays[d]=(coveredDays[d]||0)+1;totalCovered++;}
       tds+='<td class="day'+(wknd?' wkndcol':'')+'">'+(on
-        ?'<button class="cell s-guest" title="Замена: '+esc(g.emp.fio)+' — с объекта '+esc(home?home.name:'')+'" onclick="openCell(&#39;'+g.emp.id+'&#39;,'+d+')">11</button>'
+        ?'<button class="cell s-guest" title="Замена: '+esc(g.emp.fio)+' — '+esc(home.ext?home.name+' (другой дивизион)':'с объекта '+home.name)+'" onclick="openCell(&#39;'+g.emp.id+'&#39;,'+d+')">11</button>'
         :'<span class="cell off">·</span>')+'</td>';
     }
     guestRows+='<tr class="guest"><td class="c-num sticky1">↦</td>'+
       '<td class="c-fio sticky2">'+esc(g.emp.fio)+' <span class="tag green">замена</span>'+
-        '<span class="pos">с объекта '+esc(home?home.code:'')+(g.emp.position?' · '+esc(g.emp.position):'')+'</span></td>'+
-      '<td class="c-tel">'+esc(g.emp.phone||'—')+'</td><td class="c-gr">№'+esc(g.emp.graph)+'</td>'+tds+
+        (home.ext?' <span class="tag violet">другой дивизион</span>':'')+
+        '<span class="pos">'+esc(home.ext?home.name:'с объекта '+home.code)+(g.emp.position?' · '+esc(g.emp.position):'')+'</span></td>'+
+      '<td class="c-tel">'+esc(g.emp.phone||'—')+'</td><td class="c-gr">'+esc(graphLabel(g.emp))+'</td>'+tds+
       '<td class="tot">'+cnt+'</td><td class="tot">'+(cnt*HOURS)+'</td></tr>';
   });
 
@@ -80,8 +81,10 @@ function renderSched(){
   var freeRows='';
   if(showFree){
     var guestIds=guests.map(function(g){return g.emp.id;});
-    db.employees.filter(function(e){return e.objectId!==obj.id&&!e.vacancy&&e.fio;}).forEach(function(e){
-      var home=objById(e.objectId),tds='',freeCnt=0,useful=0;
+    db.employees.filter(function(e){return e.objectId!==obj.id&&!e.vacancy&&e.fio;})
+      .sort(function(a,b){return ((isExternal(a)?1:0)-(isExternal(b)?1:0))||a.fio.localeCompare(b.fio,'ru');})
+      .forEach(function(e){
+      var home=empHome(e),tds='',freeCnt=0,useful=0;
       for(var d=1;d<=dim;d++){
         var wd=new Date(y,m-1,d).getDay(),wknd=(wd===0||wd===6);
         var a=availability(e,y,m,d),need=(remainDays[d]||0)>0;
@@ -96,8 +99,9 @@ function renderSched(){
       }
       freeRows+='<tr class="freerow"><td class="c-num sticky1">✧</td>'+
         '<td class="c-fio sticky2">'+esc(e.fio)+' <span class="tag '+(useful?'green':'')+'">'+(useful?'можно взять: '+useful:'свободных: '+freeCnt)+'</span>'+
-          '<span class="pos">с объекта '+esc(home?home.code:'')+' · график №'+esc(e.graph)+(guestIds.indexOf(e.id)>=0?' · уже в заменах':'')+'</span></td>'+
-        '<td class="c-tel">'+esc(e.phone||'—')+'</td><td class="c-gr">№'+esc(e.graph)+'</td>'+tds+
+        (home.ext?' <span class="tag violet">другой дивизион</span>':'')+
+          '<span class="pos">'+esc(home.ext?home.name:'с объекта '+home.code)+' · '+esc(graphLabel(e))+(guestIds.indexOf(e.id)>=0?' · уже в заменах':'')+'</span></td>'+
+        '<td class="c-tel">'+esc(e.phone||'—')+'</td><td class="c-gr">'+esc(graphLabel(e))+'</td>'+tds+
         '<td class="tot">'+freeCnt+'</td><td class="tot">—</td></tr>';
     });
   }
@@ -115,7 +119,7 @@ function renderSched(){
   var legend='<div class="legend">'+
     kk('s-work','11 — смена 11 ч')+kk('s-extra','11 — доп. смена / можно взять')+kk('s-vac','О — отпуск')+
     kk('s-sick','Б — больничный')+kk('s-need','РВ — нужна замена')+kk('s-sub','Ф2 — замена на другом объекте')+
-    kk('s-guest','11 — сотрудник с другого объекта')+kk('s-free','· — свободен на другом объекте')+
+    kk('s-guest','11 — с другого объекта / дивизиона')+kk('s-free','· — свободен на другом объекте')+
     kk('s-vacancy','Вакансия — смена не закрыта')+'</div>';
 
   var bar='<div class="coverbar">'+
@@ -137,27 +141,99 @@ function renderSched(){
 }
 function kk(cls,t){return '<span class="k"><i class="sw '+cls+'"></i>'+t+'</span>';}
 
-/* --- кого можно взять на каждый проблемный день --- */
+/* =========================================================
+   Кого можно взять на замену
+   ========================================================= */
+var CMODE='grafik_candmode';
+var candMode=localStorage.getItem(CMODE)||'all';   /* all | near */
+var candQuery='';
+var candCtx=null;
+var candOpen={};
+
+function setCandMode(v){candMode=v;localStorage.setItem(CMODE,v);paintCands();}
+function setCandQuery(v){candQuery=v;paintCands();focusEnd('cand-q');}
+function toggleDay(d){candOpen[d]=!candOpen[d];paintCands();}
+function paintCands(){
+  var box=document.getElementById('candbox');
+  if(box&&candCtx)box.innerHTML=candCardHtml();
+}
+
 function renderCandidates(obj,y,m,remainDays){
+  candCtx={obj:obj,y:y,m:m,remain:remainDays};
+  return '<div id="candbox">'+candCardHtml()+'</div>';
+}
+
+function candCardHtml(){
+  var obj=candCtx.obj,y=candCtx.y,m=candCtx.m,remainDays=candCtx.remain;
   var days=Object.keys(remainDays).map(Number).sort(function(a,b){return a-b;});
   if(!days.length)return '';
-  var blocks=days.map(function(d){
-    var c=candidatesFor(obj.id,y,m,d);
-    var chips=c.free.length?c.free.map(function(x){
-      var home=objById(x.emp.objectId);
-      return '<span class="cand"><span class="who"><b>'+esc(x.emp.fio)+'</b>'+
-        '<span class="meta">'+esc(home?home.name:'')+' · график №'+esc(x.emp.graph)+' · '+esc(x.why)+'</span></span>'+
-        (isAdmin()?'<button class="btn ok sm" onclick="assignSub(&#39;'+x.emp.id+'&#39;,'+d+')">Назначить</button>':'')+'</span>';
-    }).join(''):'<span class="cand busy">Свободных на других объектах нет — нужна доп. смена своих</span>';
-    return '<div class="needday"><div class="dh">'+d+' '+MONTHS[m-1]+' '+y+
-      '<span class="need">нужно перекрыть: '+remainDays[d]+'</span>'+
-      '<span class="muted" style="font-weight:400;font-size:12.5px">свободны: '+c.free.length+' · заняты: '+c.busy.length+'</span></div>'+
-      '<div class="cands">'+chips+'</div></div>';
+  var q=candQuery.trim().toLowerCase();
+
+  /* ближайшие объекты — подсказка сверху */
+  var near=nearObjects(obj.id);
+  var chips=near.length?'<div class="nearbar"><span class="nb-t">Ближайшие объекты:</span>'+
+    near.slice(0,6).map(function(n){
+      return '<span class="nchip'+(n.km!=null&&n.km<=5?' close':'')+'" title="'+esc(n.obj.address||'')+'">'+
+        '<b>'+esc(n.obj.code)+'</b> '+esc(n.obj.name)+'<i>'+esc(n.label)+'</i></span>';
+    }).join('')+'</div>':'';
+
+  var blocks=days.map(function(d){return dayBlockHtml(obj,y,m,d,remainDays[d],q);}).join('');
+
+  return '<div class="card cands-card">'+
+    '<div class="row between wrap"><h3 style="margin:0">Кого можно взять на замену</h3>'+
+      '<div class="row wrap">'+
+        '<span class="seg">'+
+          '<button class="'+(candMode==='all'?'on':'')+'" onclick="setCandMode(&#39;all&#39;)">Все кандидаты</button>'+
+          '<button class="'+(candMode==='near'?'on':'')+'" onclick="setCandMode(&#39;near&#39;)">Близко к объекту</button>'+
+        '</span>'+
+        '<input id="cand-q" class="csearch" value="'+esc(candQuery)+'" placeholder="Поиск по адресу, объекту или ФИО" oninput="setCandQuery(this.value)">'+
+      '</div></div>'+
+    '<p class="muted" style="font-size:13px;margin:6px 0 0">'+
+      (candMode==='near'
+        ? 'Показаны только люди с ближайших объектов — сначала самые близкие по адресу или координатам.'
+        : 'Список отсортирован по близости: сначала ближайшие объекты, потом остальные и люди из других дивизионов.')+'</p>'+
+    chips+blocks+'</div>';
+}
+
+function dayBlockHtml(obj,y,m,d,need,q){
+  var c=candidatesFor(obj.id,y,m,d);
+  var items=c.free.map(function(x){
+    var pr=empProximity(obj.id,x.emp),home=empHome(x.emp);
+    return {emp:x.emp,why:x.why,pr:pr,home:home,
+      addr:(isExternal(x.emp)?(x.emp.address||''):((objById(x.emp.objectId)||{}).address||''))};
+  });
+  if(candMode==='near')items=items.filter(function(it){return it.pr.rank<5000;});
+  if(q)items=items.filter(function(it){
+    return (it.emp.fio||'').toLowerCase().indexOf(q)>=0||it.home.name.toLowerCase().indexOf(q)>=0||
+      (it.addr||'').toLowerCase().indexOf(q)>=0||it.home.code.toLowerCase().indexOf(q)>=0;
+  });
+  items.sort(function(a,b){return a.pr.rank-b.pr.rank||a.emp.fio.localeCompare(b.emp.fio,'ru');});
+
+  var open=!!candOpen[d],limit=open?items.length:4;
+  var rows=items.slice(0,limit).map(function(it){
+    var ext=it.home.ext;
+    return '<div class="crow'+(ext?' ext':'')+'">'+
+      '<span class="cav'+(ext?' ext':'')+'">'+esc(initials(it.emp.fio))+'</span>'+
+      '<span class="cmain"><span class="cname">'+esc(it.emp.fio)+
+        (ext?' <span class="tag violet">другой дивизион</span>':' <span class="tag">'+esc(it.home.code)+'</span>')+'</span>'+
+        '<span class="cmeta">'+esc(it.home.name)+(it.addr?' · '+esc(it.addr):'')+'</span></span>'+
+      '<span class="cdist'+(it.pr.km!=null&&it.pr.km<=5?' close':'')+'">'+esc(it.pr.label)+'</span>'+
+      '<span class="cwhy">'+esc(graphLabel(it.emp))+' · '+esc(it.why)+'</span>'+
+      (isAdmin()?'<button class="btn ok sm" onclick="assignSub(&#39;'+it.emp.id+'&#39;,'+d+')">Назначить</button>':'<span></span>')+
+    '</div>';
   }).join('');
-  return '<div class="card" style="margin-top:24px">'+
-    '<h3 style="margin-bottom:6px">Кого можно взять на замену</h3>'+
-    '<p class="muted" style="font-size:13.5px;margin-top:0">Зелёным подсвечены сотрудники других объектов, у которых в этот день выходной и нет отпуска, больничного или другой замены.</p>'+
-    blocks+'</div>';
+  var more=items.length>4?'<button class="btn ghost sm morebtn" onclick="toggleDay('+d+')">'+
+    (open?'Свернуть':'Показать всех — ещё '+(items.length-4))+'</button>':'';
+  var empty='<div class="crow empty">'+(candMode==='near'
+      ? 'Рядом свободных нет — переключите на «Все кандидаты»'
+      : 'Свободных нет — нужна доп. смена своих сотрудников')+'</div>';
+
+  return '<div class="dayblock">'+
+    '<div class="dbh"><span class="dbd">'+d+' '+MONTHS[m-1]+' '+y+'</span>'+
+      '<span class="tag red">нужно перекрыть: '+need+'</span>'+
+      '<span class="tag green">подходят: '+items.length+'</span>'+
+      '<span class="muted" style="font-size:12.5px">заняты: '+c.busy.length+'</span></div>'+
+    '<div class="crows">'+(rows||empty)+'</div>'+more+'</div>';
 }
 
 /* --- назначить замену на текущий объект --- */

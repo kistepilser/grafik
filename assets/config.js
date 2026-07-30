@@ -1,9 +1,21 @@
-/* Настройки общей базы. Файл лежит рядом с сайтом — настройки одинаковы для всех компьютеров. */
+/* =========================================================
+   НАСТРОЙКИ ОБЩЕЙ БАЗЫ (заполните один раз)
+
+   После того как здесь прописаны url и key, сайт на ЛЮБОМ
+   компьютере сразу открывает общую базу — ничего настраивать
+   заново и никаких ссылок с ключами не нужно.
+
+   Где взять: Supabase -> Settings -> API
+     url = Project URL          (https://xxxxx.supabase.co)
+     key = anon public key      (eyJhbGciOi...)
+   Страница «Общая база» в сайте умеет скачать готовый config.js.
+   ========================================================= */
 window.GRAFIK_CONFIG = {
-  url: "https://wppbxnsqlkqvfjexjbja.supabase.co",
-  key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndwcGJ4bnNxbGtxdmZqZXhqYmphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzMzcyMDQsImV4cCI6MjEwMDkxMzIwNH0.TUiIp4VfSukS_ADRSdVs6qfdllXbGwIdbWgcDh262DM",
+  url: "",
+  key: "",
   row: 1,
   table: "grafik_state",
+  // Название организации в шапке сайта
   title: "График смен",
   subtitle: "11-часовые смены · общая база"
 };
